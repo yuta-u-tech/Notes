@@ -14,6 +14,7 @@ import {
   Save,
   Search,
   Trash2,
+  X,
   UserRound
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -59,6 +60,7 @@ export default function Home() {
   const [view, setView] = useState<ViewMode>("table");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
+  const [detailOpen, setDetailOpen] = useState(false);
   const [syncState, setSyncState] = useState<"idle" | "loading" | "saving" | "error">("idle");
   const [syncMessage, setSyncMessage] = useState("Not synced");
 
@@ -148,19 +150,33 @@ export default function Home() {
     const task = newTask();
     setTasks((current) => [task, ...current]);
     setSelectedId(task.id);
+    setDetailOpen(true);
   };
 
   const deleteTask = (id: string) => {
     setTasks((current) => current.filter((task) => task.id !== id));
     if (selectedId === id) {
       setSelectedId("");
+      setDetailOpen(false);
     }
   };
 
+  const selectTask = (id: string) => {
+    setSelectedId(id);
+    setDetailOpen(true);
+  };
+
+  const statusItems = [
+    { value: "all", label: "All tasks", count: counts.all },
+    { value: "todo", label: "Todo", count: counts.todo },
+    { value: "doing", label: "Doing", count: counts.doing },
+    { value: "done", label: "Done", count: counts.done }
+  ];
+
   return (
     <main className="min-h-screen bg-white text-ink">
-      <div className="grid min-h-screen grid-cols-[240px_minmax(0,1fr)]">
-        <aside className="border-r border-line bg-panel px-3 py-4">
+      <div className="min-h-screen lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
+        <aside className="hidden border-r border-line bg-panel px-3 py-4 lg:block">
           <div className="mb-5 flex items-center gap-2 px-2">
             <div className="grid size-8 place-items-center rounded-md bg-ink text-white">
               <GitBranch size={17} />
@@ -172,12 +188,7 @@ export default function Home() {
           </div>
 
           <nav className="space-y-1">
-            {[
-              { value: "all", label: "All tasks", count: counts.all },
-              { value: "todo", label: "Todo", count: counts.todo },
-              { value: "doing", label: "Doing", count: counts.doing },
-              { value: "done", label: "Done", count: counts.done }
-            ].map((item) => (
+            {statusItems.map((item) => (
               <button
                 key={item.value}
                 className={`flex h-9 w-full items-center justify-between rounded-md px-2 text-left text-sm ${
@@ -197,9 +208,9 @@ export default function Home() {
         </aside>
 
         <section className="flex min-w-0 flex-col">
-          <header className="flex h-14 items-center justify-between border-b border-line px-5">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="relative w-[320px] max-w-[42vw]">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-3 py-3 lg:h-14 lg:flex-nowrap lg:px-5 lg:py-0">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <div className="relative min-w-[180px] flex-1 lg:w-[320px] lg:max-w-[42vw] lg:flex-none">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
                 <input
                   className="h-9 w-full rounded-md border border-line bg-white pl-9 pr-3 text-sm outline-none focus:border-accent"
@@ -230,8 +241,8 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className={`max-w-[220px] truncate text-xs ${syncState === "error" ? "text-rose-600" : "text-muted"}`}>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className={`hidden max-w-[220px] truncate text-xs sm:block ${syncState === "error" ? "text-rose-600" : "text-muted"}`}>
                 {syncMessage}
               </span>
               <button className="grid size-9 place-items-center rounded-md border border-line" onClick={load} title="Sync" type="button">
@@ -244,24 +255,47 @@ export default function Home() {
                 <Plus size={17} />
               </button>
             </div>
+
+            <nav className="flex w-full gap-1 overflow-x-auto lg:hidden" aria-label="Task status filters">
+              {statusItems.map((item) => (
+                <button
+                  key={item.value}
+                  className={`flex h-9 shrink-0 items-center gap-2 rounded-md border px-3 text-sm ${
+                    statusFilter === item.value ? "border-ink bg-ink text-white" : "border-line bg-white text-slate-700"
+                  }`}
+                  onClick={() => setStatusFilter(item.value as TaskStatus | "all")}
+                  type="button"
+                >
+                  {item.value === "all" ? <ListFilter size={15} /> : statusIcons[item.value as TaskStatus]}
+                  <span>{item.label}</span>
+                  <span className={statusFilter === item.value ? "text-white/70" : "text-muted"}>{item.count}</span>
+                </button>
+              ))}
+            </nav>
           </header>
 
-          <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_380px]">
+          <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_380px]">
             <div className="min-w-0 overflow-auto">
               {view === "table" ? (
                 <TaskTable
                   onDelete={deleteTask}
-                  onSelect={setSelectedId}
+                  onSelect={selectTask}
                   onUpdate={updateTask}
                   selectedId={selectedTask?.id}
                   tasks={filteredTasks}
                 />
               ) : (
-                <TaskBoard onSelect={setSelectedId} onUpdate={updateTask} selectedId={selectedTask?.id} tasks={filteredTasks} />
+                <TaskBoard onSelect={selectTask} onUpdate={updateTask} selectedId={selectedTask?.id} tasks={filteredTasks} />
               )}
             </div>
 
-            <TaskDetail onDelete={deleteTask} onUpdate={updateTask} task={selectedTask} />
+            <TaskDetail
+              isOpen={detailOpen}
+              onClose={() => setDetailOpen(false)}
+              onDelete={deleteTask}
+              onUpdate={updateTask}
+              task={selectedTask}
+            />
           </div>
         </section>
       </div>
@@ -357,9 +391,9 @@ function TaskBoard({
   onUpdate: (id: string, patch: Partial<Task>) => void;
 }) {
   return (
-    <div className="grid min-w-[900px] grid-cols-3 gap-3 p-4">
+    <div className="grid min-w-[760px] grid-cols-3 gap-3 p-3 lg:min-w-[900px] lg:p-4">
       {(Object.keys(statusLabels) as TaskStatus[]).map((status) => (
-        <section className="min-h-[calc(100vh-96px)] rounded-md border border-line bg-panel" key={status}>
+        <section className="min-h-[calc(100vh-148px)] rounded-md border border-line bg-panel lg:min-h-[calc(100vh-96px)]" key={status}>
           <header className="flex h-10 items-center justify-between border-b border-line px-3 text-sm font-medium">
             <span className="flex items-center gap-2">
               {statusIcons[status]}
@@ -419,38 +453,56 @@ function TaskBoard({
 
 function TaskDetail({
   task,
+  isOpen,
+  onClose,
   onUpdate,
   onDelete
 }: {
   task?: Task;
+  isOpen: boolean;
+  onClose: () => void;
   onUpdate: (id: string, patch: Partial<Task>) => void;
   onDelete: (id: string) => void;
 }) {
   if (!task) {
-    return <aside className="border-l border-line bg-white p-5 text-sm text-muted">No task selected</aside>;
+    return <aside className="hidden border-l border-line bg-white p-5 text-sm text-muted lg:block">No task selected</aside>;
   }
 
   return (
-    <aside className="min-w-0 border-l border-line bg-white">
+    <aside
+      className={`fixed inset-y-0 right-0 z-30 flex w-full min-w-0 flex-col border-l border-line bg-white shadow-xl transition-transform duration-200 sm:max-w-[420px] lg:static lg:z-auto lg:max-w-none lg:translate-x-0 lg:shadow-none ${
+        isOpen ? "translate-x-0" : "translate-x-full"
+      }`}
+    >
       <div className="flex h-14 items-center justify-between border-b border-line px-4">
         <span className="text-sm font-medium">Task detail</span>
-        <button
-          className="grid size-8 place-items-center rounded-md hover:bg-rose-50 hover:text-rose-600"
-          onClick={() => onDelete(task.id)}
-          title="Delete"
-          type="button"
-        >
-          <Trash2 size={16} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            className="grid size-8 place-items-center rounded-md hover:bg-rose-50 hover:text-rose-600"
+            onClick={() => onDelete(task.id)}
+            title="Delete"
+            type="button"
+          >
+            <Trash2 size={16} />
+          </button>
+          <button
+            className="grid size-8 place-items-center rounded-md hover:bg-slate-100 lg:hidden"
+            onClick={onClose}
+            title="Close"
+            type="button"
+          >
+            <X size={17} />
+          </button>
+        </div>
       </div>
-      <div className="space-y-4 p-4">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
         <textarea
-          className="min-h-20 w-full resize-none rounded-md border border-transparent bg-transparent p-0 text-2xl font-semibold leading-tight outline-none focus:border-line focus:p-2"
+          className="min-h-20 w-full resize-none rounded-md border border-transparent bg-transparent p-0 text-xl font-semibold leading-tight outline-none focus:border-line focus:p-2 sm:text-2xl"
           onChange={(event) => onUpdate(task.id, { title: event.target.value })}
           value={task.title}
         />
 
-        <div className="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-x-3 gap-y-3 text-sm">
+        <div className="grid grid-cols-[88px_minmax(0,1fr)] items-center gap-x-3 gap-y-3 text-sm sm:grid-cols-[96px_minmax(0,1fr)]">
           <FieldLabel icon={<Circle size={15} />} label="Status" />
           <StatusSelect onChange={(status) => onUpdate(task.id, { status })} value={task.status} />
 
@@ -481,7 +533,7 @@ function TaskDetail({
         </div>
 
         <textarea
-          className="h-[calc(100vh-430px)] min-h-56 w-full resize-none rounded-md border border-line p-3 text-sm leading-6 outline-none focus:border-accent"
+          className="h-[42vh] min-h-56 w-full resize-none rounded-md border border-line p-3 text-sm leading-6 outline-none focus:border-accent lg:h-[calc(100vh-430px)]"
           onChange={(event) => onUpdate(task.id, { notes: event.target.value })}
           placeholder="Markdown notes"
           value={task.notes}
